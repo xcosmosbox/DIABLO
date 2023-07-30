@@ -1,8 +1,12 @@
 package com.codequest23;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
+
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
@@ -108,9 +112,74 @@ public class Game {
     // Generate a random shoot angle
     double shootAngle = new Random().nextDouble() * 360;
 
+
+
     // Create the message with the shoot angle
     JsonObject message = new JsonObject();
-    message.addProperty("shoot", shootAngle);
+
+    for (JsonObject value : this.objects.values()) {
+      if (value.get("type").getAsInt() == 1 && value != this.objects.get(this.tankId)){
+        JsonArray tankPosition = value.get("position").getAsJsonArray();
+        double tankXPosition = tankPosition.get(0).getAsDouble();
+        double tankYPosition = tankPosition.get(1).getAsDouble();
+        JsonArray tankPosition2 = this.objects.get(this.tankId).get("position").getAsJsonArray();
+        double tankXPosition2 = tankPosition2.get(0).getAsDouble();
+        double tankYPosition2 = tankPosition2.get(1).getAsDouble();
+
+        double xDistance = Math.abs(tankXPosition - tankXPosition2);
+        double yDistance = Math.abs(tankYPosition - tankYPosition2);
+
+        if (xDistance <= 200 && yDistance <= 200) {
+          double m = (tankYPosition2 - tankYPosition) / (tankXPosition2 - tankXPosition);
+
+          double theta = Math.atan(m);
+
+          double angle = Math.toDegrees(theta);
+
+          if (tankXPosition2 < tankXPosition) {
+            angle += 180.0;
+          }
+
+          message.addProperty("shoot", angle);
+        } else {
+          message.addProperty("shoot", shootAngle);
+        }
+      }
+    }
+
+
+    JsonArray indicators = this.currentTurnMessage.getAsJsonObject().getAsJsonObject("message").getAsJsonArray("path_indicators");
+    if (indicators == null){
+      JsonObject boundaryObj = this.objects.get("boundary-1");
+      JsonArray positionArray = boundaryObj.get("position").getAsJsonArray();
+      double height = positionArray.get(0).getAsJsonArray().get(1).getAsDouble() - positionArray.get(1).getAsJsonArray().get(1).getAsDouble();
+      double width = positionArray.get(2).getAsJsonArray().get(0).getAsDouble() - positionArray.get(1).getAsJsonArray().get(0).getAsDouble();
+      JsonArray jsonArray = new JsonArray();
+      jsonArray.add(new JsonPrimitive(width/2));
+      jsonArray.add(new JsonPrimitive(height/2));
+      JsonElement jsonElement = jsonArray;
+      message.add("path",jsonElement);
+    } else {
+      List<JsonObject> areaAllBullet = GameUtils.getAreaAllBullet(this.tankId, objects);
+      if (areaAllBullet != null){
+        for (JsonObject bullet : areaAllBullet) {
+          if(GameUtils.willCollisionWithBullet(this.objects.get(this.tankId), bullet)){
+            JsonObject closingBoundaryObj = this.objects.get("closing_boundary-1");
+            JsonArray positionArray = closingBoundaryObj.get("position").getAsJsonArray();
+            double height = positionArray.get(0).getAsJsonArray().get(1).getAsDouble() - positionArray.get(1).getAsJsonArray().get(1).getAsDouble();
+            double width = positionArray.get(2).getAsJsonArray().get(0).getAsDouble() - positionArray.get(1).getAsJsonArray().get(0).getAsDouble();
+            JsonArray jsonArray = new JsonArray();
+            jsonArray.add(new JsonPrimitive((width/2)+new Random().nextDouble() * 55 + 150));
+            jsonArray.add(new JsonPrimitive((height/2)+new Random().nextDouble() * 55 + 150));
+            JsonElement jsonElement = jsonArray;
+            message.add("path",jsonElement);
+          }
+        }
+
+      }
+    }
+
+
 
     // Send the message
     Comms.postMessage(message);
